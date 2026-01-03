@@ -123,12 +123,72 @@ fs_entry* fs_create_file(const char* name, const char* content) {
     char* file_data = fs_file_data[fs_file_data_used++];
     size_t len = 0;
     if (content) {
-        while (content[len] != '\0' && len < MAX_FILE_SIZE - 1) {
+        /* For binary data, we need to find the actual size */
+        /* Try to determine size - if it's a C string literal with escapes, use strlen */
+        /* Otherwise, copy until null or max size */
+        while (len < MAX_FILE_SIZE - 1) {
+            /* Check for null byte, but also handle escaped sequences */
+            if (content[len] == '\0') {
+                /* Check if this is an escaped null (\x00) */
+                if (len >= 4 && content[len-4] == '\\' && content[len-3] == 'x' && 
+                    content[len-2] == '0' && content[len-1] == '0') {
+                    /* This is \x00, treat as binary zero */
+                    file_data[len-4] = 0;
+                    len = len - 3; /* Continue after the escape sequence */
+                    continue;
+                } else {
+                    break; /* Real null terminator */
+                }
+            }
             file_data[len] = content[len];
             len++;
         }
     }
     file_data[len] = '\0';
+    file->size = len;
+    file->data = file_data;
+    file->next = 0;
+    
+    fs_add_entry(fs_cwd, file);
+    return file;
+}
+
+/* Create file with binary content (size specified) */
+fs_entry* fs_create_file_binary(const char* name, const uint8_t* content, size_t content_size) {
+    if (fs_entry_count >= MAX_FILES + MAX_DIRS) {
+        return 0;
+    }
+    
+    if (fs_file_data_used >= MAX_FILES) {
+        return 0;
+    }
+    
+    /* Check if already exists */
+    if (fs_find_entry(fs_cwd, name)) {
+        return 0;
+    }
+    
+    fs_entry* file = &fs_entries[fs_entry_count++];
+    size_t i = 0;
+    while (name[i] != '\0' && i < MAX_FILENAME - 1) {
+        file->name[i] = name[i];
+        i++;
+    }
+    file->name[i] = '\0';
+    file->type = FS_TYPE_FILE;
+    
+    /* Copy binary content */
+    char* file_data = fs_file_data[fs_file_data_used++];
+    size_t len = content_size;
+    if (len > MAX_FILE_SIZE - 1) {
+        len = MAX_FILE_SIZE - 1;
+    }
+    
+    if (content) {
+        for (size_t j = 0; j < len; j++) {
+            file_data[j] = content[j];
+        }
+    }
     file->size = len;
     file->data = file_data;
     file->next = 0;
@@ -157,11 +217,22 @@ int fs_chdir(const char* path) {
         if (path[path_idx] == '/') {
             if (comp_idx > 0) {
                 component[comp_idx] = '\0';
-                fs_entry* entry = fs_find_entry(fs_cwd, component);
-                if (!entry || entry->type != FS_TYPE_DIR) {
-                    return -1;
+                
+                /* Handle special directories */
+                if (component[0] == '.' && component[1] == '.' && component[2] == '\0') {
+                    /* Go to parent directory */
+                    if (fs_cwd->parent) {
+                        fs_cwd = fs_cwd->parent;
+                    }
+                } else if (component[0] == '.' && component[1] == '\0') {
+                    /* Current directory - do nothing */
+                } else {
+                    fs_entry* entry = fs_find_entry(fs_cwd, component);
+                    if (!entry || entry->type != FS_TYPE_DIR) {
+                        return -1;
+                    }
+                    fs_cwd = entry;
                 }
-                fs_cwd = entry;
                 comp_idx = 0;
             }
         } else {
@@ -174,11 +245,22 @@ int fs_chdir(const char* path) {
     
     if (comp_idx > 0) {
         component[comp_idx] = '\0';
-        fs_entry* entry = fs_find_entry(fs_cwd, component);
-        if (!entry || entry->type != FS_TYPE_DIR) {
-            return -1;
+        
+        /* Handle special directories */
+        if (component[0] == '.' && component[1] == '.' && component[2] == '\0') {
+            /* Go to parent directory */
+            if (fs_cwd->parent) {
+                fs_cwd = fs_cwd->parent;
+            }
+        } else if (component[0] == '.' && component[1] == '\0') {
+            /* Current directory - do nothing */
+        } else {
+            fs_entry* entry = fs_find_entry(fs_cwd, component);
+            if (!entry || entry->type != FS_TYPE_DIR) {
+                return -1;
+            }
+            fs_cwd = entry;
         }
-        fs_cwd = entry;
     }
     
     return 0;

@@ -55,30 +55,47 @@ def generate_c_file(files, output_file):
         file_vars = []
         for i, (rel_path, filepath) in enumerate(files):
             var_name = f"sysfs_file_{i}"
-            file_vars.append((var_name, rel_path))
+            size_var = f"sysfs_file_{i}_size"
+            is_binary = rel_path.endswith('.16i')
             
             with open(filepath, 'rb') as infile:
                 content = infile.read()
             
+            file_vars.append((var_name, size_var, rel_path, len(content), is_binary))
+            
             f.write(f"/* {rel_path} */\n")
-            f.write(f"static const char {var_name}[] = \"")
-            # Write content as escaped string
-            for byte in content:
-                if byte == ord('\\'):
-                    f.write('\\\\')
-                elif byte == ord('"'):
-                    f.write('\\"')
-                elif byte == ord('\n'):
-                    f.write('\\n')
-                elif byte == ord('\r'):
-                    f.write('\\r')
-                elif byte == ord('\t'):
-                    f.write('\\t')
-                elif byte >= 32 and byte < 127:
-                    f.write(chr(byte))
-                else:
-                    f.write(f'\\x{byte:02x}')
-            f.write("\";\n\n")
+            if is_binary:
+                # Binary files: use unsigned char array
+                f.write(f"static const unsigned char {var_name}[] = {{")
+                for j, byte in enumerate(content):
+                    if j % 16 == 0:
+                        f.write("\n    ")
+                    f.write(f"0x{byte:02x}")
+                    if j < len(content) - 1:
+                        f.write(",")
+                    if j % 16 != 15 and j < len(content) - 1:
+                        f.write(" ")
+                f.write(f"\n}};\n")
+                f.write(f"static const size_t {size_var} = {len(content)};\n\n")
+            else:
+                # Text files: use string literal
+                f.write(f"static const char {var_name}[] = \"")
+                for byte in content:
+                    if byte == ord('\\'):
+                        f.write('\\\\')
+                    elif byte == ord('"'):
+                        f.write('\\"')
+                    elif byte == ord('\n'):
+                        f.write('\\n')
+                    elif byte == ord('\r'):
+                        f.write('\\r')
+                    elif byte == ord('\t'):
+                        f.write('\\t')
+                    elif byte >= 32 and byte < 127:
+                        f.write(chr(byte))
+                    else:
+                        f.write(f'\\x{byte:02x}')
+                f.write("\";\n\n")
         
         # Generate initialization function
         f.write("/* Initialize filesystem with files from sys/ directory */\n")
@@ -88,7 +105,7 @@ def generate_c_file(files, output_file):
         # Track current directory to avoid redundant chdirs
         current_path = ["sys"]
         
-        for var_name, rel_path in file_vars:
+        for var_name, size_var, rel_path, file_size, is_binary in file_vars:
             # Parse path and create directories/files
             parts = rel_path.split('/')
             filename = parts[-1]
@@ -121,8 +138,11 @@ def generate_c_file(files, output_file):
                     f.write(f"    fs_chdir(\"{dir_part}\");\n")
                     current_path.append(dir_part)
             
-            # Create file
-            f.write(f"    fs_create_file(\"{filename}\", {var_name});\n")
+            # Create file (use binary function for binary files, regular for text files)
+            if is_binary:
+                f.write(f"    fs_create_file_binary(\"{filename}\", {var_name}, {size_var});\n")
+            else:
+                f.write(f"    fs_create_file(\"{filename}\", {var_name});\n")
         
         f.write("}\n")
 

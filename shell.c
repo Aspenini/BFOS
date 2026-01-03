@@ -244,6 +244,82 @@ static void handle_clear(char* args[] __attribute__((unused)), size_t arg_count 
     terminal_clear();
 }
 
+/* Handle play command - interactive brainfuck session */
+static void handle_play(char* args[] __attribute__((unused)), size_t arg_count __attribute__((unused))) {
+    terminal_setcolor(vga_entry(COLOR_LIGHT_CYAN, COLOR_BLACK));
+    terminal_writestring("Brainfuck Play Session\n");
+    terminal_writestring("Type brainfuck code and press Enter to run.\n");
+    terminal_writestring("Press Ctrl+Q to exit.\n\n");
+    
+    char bf_code[MAX_LINE_LENGTH];
+    int running = 1;
+    
+    while (running) {
+        /* Show prompt */
+        terminal_setcolor(vga_entry(COLOR_LIGHT_GREEN, COLOR_BLACK));
+        terminal_writestring("playsession> ");
+        terminal_setcolor(vga_entry(COLOR_LIGHT_GREY, COLOR_BLACK));
+        
+        /* Read line */
+        size_t pos = 0;
+        bf_code[0] = '\0';
+        
+        while (pos < MAX_LINE_LENGTH - 1) {
+            int c = keyboard_getchar();
+            
+            if (c == -1) {
+                continue;
+            }
+            
+            /* Check for Ctrl+Q (0x11) */
+            if (c == 0x11) {
+                terminal_putchar('\n');
+                terminal_setcolor(vga_entry(COLOR_LIGHT_CYAN, COLOR_BLACK));
+                terminal_writestring("Exiting play session.\n");
+                terminal_setcolor(vga_entry(COLOR_LIGHT_GREY, COLOR_BLACK));
+                running = 0;
+                break;
+            }
+            
+            /* Handle backspace */
+            if (c == '\b' || c == 127) {
+                if (pos > 0) {
+                    pos--;
+                    bf_code[pos] = '\0';
+                    terminal_putchar('\b');
+                    terminal_putchar(' ');
+                    terminal_putchar('\b');
+                }
+                continue;
+            }
+            
+            /* Handle enter */
+            if (c == '\n' || c == '\r') {
+                terminal_putchar('\n');
+                bf_code[pos] = '\0';
+                
+                /* Execute brainfuck code if not empty */
+                if (pos > 0) {
+                    terminal_setcolor(vga_entry(COLOR_LIGHT_GREY, COLOR_BLACK));
+                    bf_reset();
+                    bf_execute(bf_code);
+                    terminal_putchar('\n');
+                }
+                
+                break;
+            }
+            
+            /* Regular character */
+            if (c >= 32 && c < 127) {
+                bf_code[pos] = c;
+                pos++;
+                bf_code[pos] = '\0';
+                terminal_putchar(c);
+            }
+        }
+    }
+}
+
 /* Execute command */
 static void execute_command(const char* line) {
     char line_copy[MAX_LINE_LENGTH];
@@ -293,6 +369,12 @@ static void execute_command(const char* line) {
         return;
     }
     
+    if (cmd_len == 4 && args[0][0] == 'p' && args[0][1] == 'l' && args[0][2] == 'a' && 
+        args[0][3] == 'y') {
+        handle_play(args, arg_count);
+        return;
+    }
+    
     /* Try to find as brainfuck command */
     fs_entry* cmd_file = find_command(args[0]);
     if (cmd_file) {
@@ -321,9 +403,9 @@ static void read_line(char* buffer, size_t max_len) {
         keyboard_handle_interrupt(); /* Poll twice to catch rapid keystrokes */
         int c = keyboard_getchar();
         if (c == -1) {
-            /* Update blinking cursor while waiting */
+            /* Update cursor while waiting */
             terminal_update_cursor();
-            /* Small delay to allow cursor to blink and give CPU time */
+            /* Small delay to give CPU time */
             for (volatile int i = 0; i < 5000; i++);
             /* Don't use HLT - it might prevent keyboard polling on some systems */
             continue;

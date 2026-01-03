@@ -14,7 +14,22 @@ static uint8_t terminal_color;
 static uint16_t* terminal_buffer;
 static char cursor_char = '_';
 static int cursor_visible = 1;
-static uint32_t cursor_blink_counter = 0;
+
+/* Remove all cursor characters from screen (except current position) */
+static void terminal_cleanup_cursors(void) {
+    for (size_t y = 0; y < VGA_HEIGHT; y++) {
+        for (size_t x = 0; x < VGA_WIDTH; x++) {
+            const size_t index = y * VGA_WIDTH + x;
+            uint16_t current = terminal_buffer[index];
+            if ((current & 0xFF) == cursor_char) {
+                /* Only clear if it's not the current cursor position */
+                if (y != terminal_row || x != terminal_column) {
+                    terminal_buffer[index] = vga_entry(' ', (current >> 8) & 0xFF);
+                }
+            }
+        }
+    }
+}
 
 /* Initialize terminal */
 void terminal_initialize(void) {
@@ -28,6 +43,8 @@ void terminal_initialize(void) {
             terminal_buffer[index] = vga_entry(' ', terminal_color);
         }
     }
+    /* Make sure no cursor characters are left behind */
+    cursor_visible = 0;
 }
 
 /* Set terminal color */
@@ -94,30 +111,38 @@ size_t terminal_get_column(void) {
 
 /* Set terminal position */
 void terminal_set_position(size_t x, size_t y) {
+    /* Clear cursor at old position */
+    if (cursor_visible) {
+        const size_t old_index = terminal_row * VGA_WIDTH + terminal_column;
+        uint16_t old = terminal_buffer[old_index];
+        if ((old & 0xFF) == cursor_char) {
+            terminal_buffer[old_index] = vga_entry(' ', (old >> 8) & 0xFF);
+        }
+    }
+    
     if (x < VGA_WIDTH && y < VGA_HEIGHT) {
         terminal_column = x;
         terminal_row = y;
     }
+    
+    /* Show cursor at new position */
+    if (cursor_visible) {
+        terminal_update_cursor();
+    }
 }
 
-/* Update cursor display with blinking */
+/* Update cursor display (solid, no blinking) */
 void terminal_update_cursor(void) {
     if (cursor_visible) {
+        /* Clean up any stray cursors first */
+        terminal_cleanup_cursors();
+        
         const size_t index = terminal_row * VGA_WIDTH + terminal_column;
         uint16_t current = terminal_buffer[index];
         uint8_t color = (current >> 8) & 0xFF;
         
-        /* Simple blink: toggle every ~30000 iterations (slower blink) */
-        cursor_blink_counter++;
-        if ((cursor_blink_counter % 30000) < 15000) {
-            terminal_buffer[index] = vga_entry(cursor_char, color);
-        } else {
-            /* Show space during "off" phase, but preserve color */
-            if ((current & 0xFF) != cursor_char) {
-                /* Only change if it's not already the cursor */
-                terminal_buffer[index] = vga_entry(' ', color);
-            }
-        }
+        /* Always show cursor (solid, no blinking) */
+        terminal_buffer[index] = vga_entry(cursor_char, color);
     }
 }
 
@@ -134,7 +159,6 @@ void terminal_hide_cursor(void) {
 /* Show cursor */
 void terminal_show_cursor(void) {
     cursor_visible = 1;
-    cursor_blink_counter = 0; /* Reset blink counter to show cursor immediately */
     terminal_update_cursor();
 }
 
@@ -146,11 +170,17 @@ void terminal_clear(void) {
         terminal_hide_cursor();
     }
     
-    /* Clear entire screen */
+    /* Clear entire screen and remove any stray cursor characters */
     for (size_t y = 0; y < VGA_HEIGHT; y++) {
         for (size_t x = 0; x < VGA_WIDTH; x++) {
             const size_t index = y * VGA_WIDTH + x;
-            terminal_buffer[index] = vga_entry(' ', terminal_color);
+            uint16_t current = terminal_buffer[index];
+            /* If it's a cursor character, clear it */
+            if ((current & 0xFF) == cursor_char) {
+                terminal_buffer[index] = vga_entry(' ', terminal_color);
+            } else {
+                terminal_buffer[index] = vga_entry(' ', terminal_color);
+            }
         }
     }
     

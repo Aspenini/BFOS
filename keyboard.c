@@ -16,6 +16,8 @@ static size_t keyboard_buffer_count = 0;
 
 /* Shift key state */
 static int shift_pressed = 0;
+/* Control key state */
+static int ctrl_pressed = 0;
 
 /* Scan code to ASCII conversion (US QWERTY layout) */
 /* Handles both scan code set 1 and set 2 */
@@ -82,6 +84,7 @@ void keyboard_initialize(void) {
     keyboard_buffer_tail = 0;
     keyboard_buffer_count = 0;
     shift_pressed = 0;
+    ctrl_pressed = 0;
     
     /* Enable keyboard by sending command 0xAE (Enable first PS/2 port) */
     keyboard_write_command(0xAE);
@@ -104,9 +107,11 @@ void keyboard_handle_interrupt(void) {
         
         /* Handle scan code set 2 break codes (0x80+) */
         if (scancode >= 0x80) {
-            /* Check for shift key release */
+            /* Check for modifier key release */
             if (scancode == 0xAA || scancode == 0xB6) { /* Left/Right Shift break */
                 shift_pressed = 0;
+            } else if (scancode == 0x9D || scancode == 0xB8) { /* Left/Right Ctrl break */
+                ctrl_pressed = 0;
             }
             continue; /* Ignore other break codes */
         }
@@ -119,17 +124,24 @@ void keyboard_handle_interrupt(void) {
         
         /* Skip break codes (key release in set 1) */
         if (key_released) {
-            /* Check for shift key release */
+            /* Check for modifier key release */
             if (scancode == 0x2A || scancode == 0x36) { /* Left/Right Shift */
                 shift_pressed = 0;
+            } else if (scancode == 0x1D || scancode == 0x1D) { /* Left/Right Ctrl (same code, extended bit differs) */
+                ctrl_pressed = 0;
             }
             key_released = 0;
             continue;
         }
         
-        /* Handle shift key press */
+        /* Handle modifier key press */
         if (scancode == 0x2A || scancode == 0x36) { /* Left Shift (0x2A) or Right Shift (0x36) */
             shift_pressed = 1;
+            continue;
+        }
+        
+        if (scancode == 0x1D) { /* Left Ctrl */
+            ctrl_pressed = 1;
             continue;
         }
         
@@ -140,6 +152,14 @@ void keyboard_handle_interrupt(void) {
                 ascii = scan_code_to_ascii_shift[scancode];
             } else {
                 ascii = scan_code_to_ascii[scancode];
+            }
+            
+            /* Handle Ctrl+Q (quit) - send special code 0x11 (Ctrl+Q) */
+            if (ctrl_pressed && ascii == 'q') {
+                ascii = 0x11; /* Ctrl+Q */
+            } else if (ctrl_pressed && ascii != 0) {
+                /* Suppress other Ctrl+key combinations (except Ctrl+Q) */
+                continue;
             }
             
             if (ascii != 0 && keyboard_buffer_count < KEYBOARD_BUFFER_SIZE) {

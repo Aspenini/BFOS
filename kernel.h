@@ -81,6 +81,7 @@ typedef struct fs_entry {
 void fs_initialize(void);
 fs_entry* fs_mkdir(const char* name);
 fs_entry* fs_create_file(const char* name, const char* content);
+fs_entry* fs_create_file_binary(const char* name, const uint8_t* content, size_t content_size);
 int fs_chdir(const char* path);
 void fs_get_cwd(char* path, size_t max_len);
 fs_entry* fs_find_file(const char* path);

@@ -42,3 +42,11 @@ shell.o
 sysfs_data.c
 sysfs_data.o
 
+# ISO build directory
+iso/
+
+# Built tools binaries
+tools/convert16i
+tools/png216i
+tools/png2bfi
+tools/*.o
