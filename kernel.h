@@ -5,9 +5,8 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-#define VGA_WIDTH 80
-#define VGA_HEIGHT 25
 #define VGA_MEMORY 0xB8000
+/* VGA dimensions are now dynamic - use config_get_vga_width() and config_get_vga_height() */
 
 /* VGA text mode color constants */
 #define COLOR_BLACK 0
@@ -47,6 +46,7 @@ void terminal_update_cursor(void);
 void terminal_hide_cursor(void);
 void terminal_show_cursor(void);
 void terminal_clear(void);
+void terminal_set_resolution(size_t width, size_t height);
 
 /* Brainfuck interpreter functions */
 void bf_reset(void);
@@ -93,6 +93,13 @@ void sysfs_initialize(void);
 
 /* Shell functions */
 void shell_main(void);
+
+/* Configuration functions */
+void config_initialize(void);
+size_t config_get_vga_width(void);
+size_t config_get_vga_height(void);
+int config_set_resolution(size_t width, size_t height);
+void config_get_resolution_string(char* buffer, size_t max_len);
 
 #endif
 

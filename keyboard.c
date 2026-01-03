@@ -103,8 +103,8 @@ void keyboard_handle_interrupt(void) {
     static int key_released = 0;
     
     while (keyboard_has_data() && max_polls-- > 0) {
-        uint8_t scancode = keyboard_read_data();
-        
+    uint8_t scancode = keyboard_read_data();
+    
         /* Handle scan code set 2 break codes (0x80+) */
         if (scancode >= 0x80) {
             /* Check for modifier key release */
@@ -117,20 +117,20 @@ void keyboard_handle_interrupt(void) {
         }
         
         /* Handle scan code set 1 key release (0xF0 prefix) */
-        if (scancode == 0xF0) {
-            key_released = 1;
+    if (scancode == 0xF0) {
+        key_released = 1;
             continue;
-        }
-        
+    }
+    
         /* Skip break codes (key release in set 1) */
-        if (key_released) {
+    if (key_released) {
             /* Check for modifier key release */
             if (scancode == 0x2A || scancode == 0x36) { /* Left/Right Shift */
                 shift_pressed = 0;
             } else if (scancode == 0x1D || scancode == 0x1D) { /* Left/Right Ctrl (same code, extended bit differs) */
                 ctrl_pressed = 0;
             }
-            key_released = 0;
+        key_released = 0;
             continue;
         }
         
@@ -143,8 +143,8 @@ void keyboard_handle_interrupt(void) {
         if (scancode == 0x1D) { /* Left Ctrl */
             ctrl_pressed = 1;
             continue;
-        }
-        
+    }
+    
         /* Convert scan code to ASCII (both sets use 0x01-0x58 for make codes) */
         if (scancode > 0 && scancode < 128) {
             char ascii;
@@ -162,10 +162,10 @@ void keyboard_handle_interrupt(void) {
                 continue;
             }
             
-            if (ascii != 0 && keyboard_buffer_count < KEYBOARD_BUFFER_SIZE) {
-                keyboard_buffer[keyboard_buffer_tail] = ascii;
-                keyboard_buffer_tail = (keyboard_buffer_tail + 1) % KEYBOARD_BUFFER_SIZE;
-                keyboard_buffer_count++;
+        if (ascii != 0 && keyboard_buffer_count < KEYBOARD_BUFFER_SIZE) {
+            keyboard_buffer[keyboard_buffer_tail] = ascii;
+            keyboard_buffer_tail = (keyboard_buffer_tail + 1) % KEYBOARD_BUFFER_SIZE;
+            keyboard_buffer_count++;
             }
         }
     }

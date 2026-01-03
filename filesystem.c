@@ -227,11 +227,11 @@ int fs_chdir(const char* path) {
                 } else if (component[0] == '.' && component[1] == '\0') {
                     /* Current directory - do nothing */
                 } else {
-                    fs_entry* entry = fs_find_entry(fs_cwd, component);
-                    if (!entry || entry->type != FS_TYPE_DIR) {
-                        return -1;
-                    }
-                    fs_cwd = entry;
+                fs_entry* entry = fs_find_entry(fs_cwd, component);
+                if (!entry || entry->type != FS_TYPE_DIR) {
+                    return -1;
+                }
+                fs_cwd = entry;
                 }
                 comp_idx = 0;
             }
@@ -255,11 +255,11 @@ int fs_chdir(const char* path) {
         } else if (component[0] == '.' && component[1] == '\0') {
             /* Current directory - do nothing */
         } else {
-            fs_entry* entry = fs_find_entry(fs_cwd, component);
-            if (!entry || entry->type != FS_TYPE_DIR) {
-                return -1;
-            }
-            fs_cwd = entry;
+        fs_entry* entry = fs_find_entry(fs_cwd, component);
+        if (!entry || entry->type != FS_TYPE_DIR) {
+            return -1;
+        }
+        fs_cwd = entry;
         }
     }
     

@@ -12,6 +12,7 @@ static inline uint16_t vga_entry(unsigned char uc, uint8_t color) {
 
 /* Kernel main entry point */
 void kernel_main(void) {
+    config_initialize();
     terminal_initialize();
     keyboard_initialize();
     fs_initialize();

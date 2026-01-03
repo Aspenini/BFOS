@@ -244,6 +244,129 @@ static void handle_clear(char* args[] __attribute__((unused)), size_t arg_count 
     terminal_clear();
 }
 
+/* Handle config command - system configuration */
+static void handle_config(char* args[], size_t arg_count) {
+    if (arg_count < 2) {
+        /* Show current configuration */
+        terminal_setcolor(vga_entry(COLOR_LIGHT_CYAN, COLOR_BLACK));
+        terminal_writestring("Current Configuration:\n");
+        terminal_setcolor(vga_entry(COLOR_LIGHT_GREY, COLOR_BLACK));
+        
+        char res_str[16];
+        config_get_resolution_string(res_str, 16);
+        terminal_writestring("  Resolution: ");
+        terminal_writestring(res_str);
+        terminal_putchar('\n');
+        terminal_putchar('\n');
+        
+        terminal_setcolor(vga_entry(COLOR_LIGHT_CYAN, COLOR_BLACK));
+        terminal_writestring("Usage:\n");
+        terminal_setcolor(vga_entry(COLOR_LIGHT_GREY, COLOR_BLACK));
+        terminal_writestring("  config                    - Show current configuration\n");
+        terminal_writestring("  config resolution <WxH>  - Set resolution (e.g., 80x50)\n");
+        terminal_writestring("  config resolutions       - List available resolutions\n");
+        return;
+    }
+    
+    /* Parse subcommand */
+    size_t subcmd_len = 0;
+    while (args[1][subcmd_len] != '\0') {
+        subcmd_len++;
+    }
+    
+    if (subcmd_len == 10 && 
+        args[1][0] == 'r' && args[1][1] == 'e' && args[1][2] == 's' && args[1][3] == 'o' &&
+        args[1][4] == 'l' && args[1][5] == 'u' && args[1][6] == 't' && args[1][7] == 'i' &&
+        args[1][8] == 'o' && args[1][9] == 'n') {
+        /* Handle resolution subcommand */
+        if (arg_count < 3) {
+            terminal_setcolor(vga_entry(COLOR_LIGHT_RED, COLOR_BLACK));
+            terminal_writestring("config resolution: missing argument\n");
+            terminal_writestring("Usage: config resolution <WIDTH>x<HEIGHT>\n");
+            terminal_writestring("Example: config resolution 80x50\n");
+            return;
+        }
+        
+        /* Parse WIDTHxHEIGHT format */
+        char* res_str = args[2];
+        size_t width = 0;
+        size_t height = 0;
+        size_t i = 0;
+        int found_x = 0;
+        
+        while (res_str[i] != '\0' && i < 16) {
+            if (res_str[i] == 'x' || res_str[i] == 'X') {
+                found_x = 1;
+                i++;
+                break;
+            }
+            if (res_str[i] >= '0' && res_str[i] <= '9') {
+                width = width * 10 + (res_str[i] - '0');
+            }
+            i++;
+        }
+        
+        if (!found_x) {
+            terminal_setcolor(vga_entry(COLOR_LIGHT_RED, COLOR_BLACK));
+            terminal_writestring("config resolution: invalid format\n");
+            terminal_writestring("Use format: WIDTHxHEIGHT (e.g., 80x50)\n");
+            return;
+        }
+        
+        while (res_str[i] != '\0' && i < 16) {
+            if (res_str[i] >= '0' && res_str[i] <= '9') {
+                height = height * 10 + (res_str[i] - '0');
+            }
+            i++;
+        }
+        
+        if (width == 0 || height == 0) {
+            terminal_setcolor(vga_entry(COLOR_LIGHT_RED, COLOR_BLACK));
+            terminal_writestring("config resolution: invalid dimensions\n");
+            return;
+        }
+        
+        /* Set resolution */
+        if (config_set_resolution(width, height) == 0) {
+            terminal_setcolor(vga_entry(COLOR_LIGHT_GREEN, COLOR_BLACK));
+            terminal_writestring("Resolution set to ");
+            char res_display[16];
+            config_get_resolution_string(res_display, 16);
+            terminal_writestring(res_display);
+            terminal_writestring("\n");
+            terminal_setcolor(vga_entry(COLOR_YELLOW, COLOR_BLACK));
+            terminal_writestring("Applying resolution...\n");
+            terminal_set_resolution(width, height);
+            terminal_setcolor(vga_entry(COLOR_LIGHT_GREY, COLOR_BLACK));
+        } else {
+            terminal_setcolor(vga_entry(COLOR_LIGHT_RED, COLOR_BLACK));
+            terminal_writestring("config resolution: invalid resolution\n");
+            terminal_writestring("Available resolutions: 80x25, 80x50, 132x25, 132x43, 132x50\n");
+        }
+        return;
+    }
+    
+    if (subcmd_len == 11 &&
+        args[1][0] == 'r' && args[1][1] == 'e' && args[1][2] == 's' && args[1][3] == 'o' &&
+        args[1][4] == 'l' && args[1][5] == 'u' && args[1][6] == 't' && args[1][7] == 'i' &&
+        args[1][8] == 'o' && args[1][9] == 'n' && args[1][10] == 's') {
+        /* List available resolutions */
+        terminal_setcolor(vga_entry(COLOR_LIGHT_CYAN, COLOR_BLACK));
+        terminal_writestring("Available Resolutions:\n");
+        terminal_setcolor(vga_entry(COLOR_LIGHT_GREY, COLOR_BLACK));
+        terminal_writestring("  80x25  - Standard VGA text mode (default)\n");
+        terminal_writestring("  80x50  - Extended VGA text mode\n");
+        terminal_writestring("  132x25 - Wide VGA text mode\n");
+        terminal_writestring("  132x43 - Wide extended VGA text mode\n");
+        terminal_writestring("  132x50 - Wide extended VGA text mode\n");
+        return;
+    }
+    
+    terminal_setcolor(vga_entry(COLOR_LIGHT_RED, COLOR_BLACK));
+    terminal_writestring("config: unknown subcommand\n");
+    terminal_writestring("Use 'config' to see usage\n");
+}
+
 /* Handle play command - interactive brainfuck session */
 static void handle_play(char* args[] __attribute__((unused)), size_t arg_count __attribute__((unused))) {
     terminal_setcolor(vga_entry(COLOR_LIGHT_CYAN, COLOR_BLACK));
@@ -372,6 +495,12 @@ static void execute_command(const char* line) {
     if (cmd_len == 4 && args[0][0] == 'p' && args[0][1] == 'l' && args[0][2] == 'a' && 
         args[0][3] == 'y') {
         handle_play(args, arg_count);
+        return;
+    }
+    
+    if (cmd_len == 6 && args[0][0] == 'c' && args[0][1] == 'o' && args[0][2] == 'n' &&
+        args[0][3] == 'f' && args[0][4] == 'i' && args[0][5] == 'g') {
+        handle_config(args, arg_count);
         return;
     }
     
