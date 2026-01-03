@@ -6,23 +6,7 @@
 
 #define MAX_FILES 256
 #define MAX_DIRS 64
-#define MAX_FILENAME 64
-#define MAX_PATH 256
 #define MAX_FILE_SIZE 8192
-
-/* File types */
-#define FS_TYPE_FILE 1
-#define FS_TYPE_DIR 2
-
-/* File system entry */
-typedef struct {
-    char name[MAX_FILENAME];
-    uint8_t type;
-    size_t size;
-    char* data;  /* For files: content; For dirs: child entries */
-    struct fs_entry* parent;
-    struct fs_entry* next;  /* Sibling linked list */
-} fs_entry;
 
 /* Root directory */
 static fs_entry* fs_root = 0;

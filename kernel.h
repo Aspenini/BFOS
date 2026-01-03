@@ -40,6 +40,13 @@ void terminal_initialize(void);
 void terminal_setcolor(uint8_t color);
 void terminal_putchar(char c);
 void terminal_writestring(const char* data);
+size_t terminal_get_row(void);
+size_t terminal_get_column(void);
+void terminal_set_position(size_t x, size_t y);
+void terminal_update_cursor(void);
+void terminal_hide_cursor(void);
+void terminal_show_cursor(void);
+void terminal_clear(void);
 
 /* Brainfuck interpreter functions */
 void bf_reset(void);
@@ -54,6 +61,22 @@ void keyboard_handle_interrupt(void);
 int keyboard_getchar(void);
 char keyboard_wait_char(void);
 
+/* File system constants */
+#define MAX_FILENAME 64
+#define MAX_PATH 256
+#define FS_TYPE_FILE 1
+#define FS_TYPE_DIR 2
+
+/* File system entry structure */
+typedef struct fs_entry {
+    char name[MAX_FILENAME];
+    uint8_t type;
+    size_t size;
+    char* data;  /* For files: content; For dirs: child entries */
+    struct fs_entry* parent;
+    struct fs_entry* next;  /* Sibling linked list */
+} fs_entry;
+
 /* File system functions */
 void fs_initialize(void);
 fs_entry* fs_mkdir(const char* name);
@@ -64,9 +87,8 @@ fs_entry* fs_find_file(const char* path);
 void fs_list_dir(fs_entry* dir, void (*callback)(const char* name, uint8_t type));
 fs_entry* fs_get_cwd_entry(void);
 
-/* File system forward declarations */
-struct fs_entry;
-typedef struct fs_entry fs_entry;
+/* System filesystem initialization (from sys/ directory) */
+void sysfs_initialize(void);
 
 /* Shell functions */
 void shell_main(void);

@@ -1,0 +1,44 @@
+# Build artifacts
+*.o
+*.bin
+*.elf
+*.iso
+*.img
+
+# Object files
+*.obj
+*.a
+*.so
+*.dylib
+
+# Compiled binaries
+kernel.bin
+boot.o
+kernel.o
+terminal.o
+bf_interpreter.o
+keyboard.o
+filesystem.o
+shell.o
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+
+# QEMU/Emulator files
+*.qcow2
+*.vmdk
+
+# Generated filesystem data
+sysfs_data.c
+sysfs_data.o
+

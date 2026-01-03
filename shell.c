@@ -17,7 +17,7 @@ static char command_buffer[MAX_LINE_LENGTH];
 static size_t command_pos = 0;
 
 /* Parse command line into arguments */
-static size_t parse_args(const char* line, char* args[], size_t max_args) {
+static size_t parse_args(char* line, char* args[], size_t max_args) {
     size_t arg_count = 0;
     size_t i = 0;
     int in_arg = 0;
@@ -115,7 +115,7 @@ static fs_entry* find_command(const char* cmd_name) {
 }
 
 /* Execute brainfuck command with arguments */
-static void execute_bf_command(fs_entry* file, char* args[], size_t arg_count) {
+static void execute_bf_command(fs_entry* file, char* args[] __attribute__((unused)), size_t arg_count __attribute__((unused))) {
     if (!file || file->type != FS_TYPE_FILE) {
         return;
     }
@@ -124,6 +124,9 @@ static void execute_bf_command(fs_entry* file, char* args[], size_t arg_count) {
     /* TODO: Pass arguments to brainfuck program via system calls */
     bf_load_and_run(file->data);
 }
+
+/* Forward declarations */
+static void ls_callback(const char* name, uint8_t type);
 
 /* Handle cd command */
 static void handle_cd(char* args[], size_t arg_count) {
@@ -201,6 +204,46 @@ static void handle_run(char* args[], size_t arg_count) {
     terminal_putchar('\n');
 }
 
+/* Handle txt command - display text file contents */
+static void handle_txt(char* args[], size_t arg_count) {
+    if (arg_count < 2) {
+        terminal_setcolor(vga_entry(COLOR_LIGHT_RED, COLOR_BLACK));
+        terminal_writestring("txt: missing argument\n");
+        return;
+    }
+    
+    fs_entry* file = fs_find_file(args[1]);
+    if (!file) {
+        terminal_setcolor(vga_entry(COLOR_LIGHT_RED, COLOR_BLACK));
+        terminal_writestring("txt: file not found\n");
+        return;
+    }
+    
+    if (file->type != FS_TYPE_FILE) {
+        terminal_setcolor(vga_entry(COLOR_LIGHT_RED, COLOR_BLACK));
+        terminal_writestring("txt: not a file\n");
+        return;
+    }
+    
+    /* Display file contents */
+    terminal_setcolor(vga_entry(COLOR_LIGHT_GREY, COLOR_BLACK));
+    if (file->data && file->size > 0) {
+        for (size_t i = 0; i < file->size; i++) {
+            char c = file->data[i];
+            if (c == '\0') {
+                break; /* Null terminator */
+            }
+            terminal_putchar(c);
+        }
+    }
+    terminal_putchar('\n');
+}
+
+/* Handle clear command - clear terminal screen */
+static void handle_clear(char* args[] __attribute__((unused)), size_t arg_count __attribute__((unused))) {
+    terminal_clear();
+}
+
 /* Execute command */
 static void execute_command(const char* line) {
     char line_copy[MAX_LINE_LENGTH];
@@ -239,6 +282,17 @@ static void execute_command(const char* line) {
         return;
     }
     
+    if (cmd_len == 3 && args[0][0] == 't' && args[0][1] == 'x' && args[0][2] == 't') {
+        handle_txt(args, arg_count);
+        return;
+    }
+    
+    if (cmd_len == 5 && args[0][0] == 'c' && args[0][1] == 'l' && args[0][2] == 'e' && 
+        args[0][3] == 'a' && args[0][4] == 'r') {
+        handle_clear(args, arg_count);
+        return;
+    }
+    
     /* Try to find as brainfuck command */
     fs_entry* cmd_file = find_command(args[0]);
     if (cmd_file) {
@@ -258,15 +312,25 @@ static void read_line(char* buffer, size_t max_len) {
     command_pos = 0;
     buffer[0] = '\0';
     
+    /* Show cursor at prompt position */
+    terminal_show_cursor();
+    
     while (1) {
+        /* Aggressively poll keyboard - call multiple times */
+        keyboard_handle_interrupt();
+        keyboard_handle_interrupt(); /* Poll twice to catch rapid keystrokes */
         int c = keyboard_getchar();
         if (c == -1) {
-            keyboard_handle_interrupt();
-            __asm__ volatile("hlt");
+            /* Update blinking cursor while waiting */
+            terminal_update_cursor();
+            /* Small delay to allow cursor to blink and give CPU time */
+            for (volatile int i = 0; i < 5000; i++);
+            /* Don't use HLT - it might prevent keyboard polling on some systems */
             continue;
         }
         
         if (c == '\n' || c == '\r') {
+            terminal_hide_cursor();
             terminal_putchar('\n');
             buffer[command_pos] = '\0';
             return;
@@ -276,9 +340,18 @@ static void read_line(char* buffer, size_t max_len) {
             if (command_pos > 0) {
                 command_pos--;
                 buffer[command_pos] = '\0';
-                terminal_putchar('\b');
-                terminal_putchar(' ');
-                terminal_putchar('\b');
+                /* Move cursor back */
+                size_t col = terminal_get_column();
+                if (col > 0) {
+                    terminal_set_position(col - 1, terminal_get_row());
+                    terminal_putchar(' ');
+                    terminal_set_position(col - 1, terminal_get_row());
+                } else {
+                    terminal_putchar('\b');
+                    terminal_putchar(' ');
+                    terminal_putchar('\b');
+                }
+                terminal_update_cursor();
             }
             continue;
         }
@@ -287,6 +360,7 @@ static void read_line(char* buffer, size_t max_len) {
             buffer[command_pos++] = (char)c;
             buffer[command_pos] = '\0';
             terminal_putchar((char)c);
+            terminal_update_cursor();
         }
     }
 }
@@ -304,6 +378,8 @@ static void print_prompt(void) {
     terminal_writestring(cwd);
     terminal_setcolor(vga_entry(COLOR_LIGHT_GREY, COLOR_BLACK));
     terminal_writestring("$ ");
+    
+    /* Cursor will be shown by read_line */
 }
 
 /* Shell main loop */

@@ -6,14 +6,20 @@ ASMFLAGS = -f elf32
 CFLAGS = -m32 -nostdlib -nostdinc -fno-builtin -fno-stack-protector -Wall -Wextra
 LDFLAGS = -m elf_i386 -T linker.ld
 
-KERNEL_OBJ = boot.o kernel.o terminal.o bf_interpreter.o keyboard.o filesystem.o shell.o
+KERNEL_OBJ = boot.o kernel.o terminal.o bf_interpreter.o keyboard.o filesystem.o shell.o sysfs_data.o
 KERNEL_BIN = kernel.bin
 ISO_DIR = iso
 ISO_FILE = kernel.iso
 
-.PHONY: all clean run iso
+.PHONY: all clean run iso sysfs
 
-all: $(KERNEL_BIN)
+all: sysfs $(KERNEL_BIN)
+
+sysfs:
+	@python3 build_sysfs.py
+
+sysfs_data.o: sysfs_data.c kernel.h
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(KERNEL_BIN): $(KERNEL_OBJ)
 	$(LD) $(LDFLAGS) -o $@ $^
@@ -57,6 +63,14 @@ run-iso: iso
 	qemu-system-i386 -cdrom $(ISO_FILE)
 
 clean:
-	rm -f $(KERNEL_OBJ) $(KERNEL_BIN) $(ISO_FILE)
+	@echo "Cleaning build artifacts..."
+	rm -f *.o *.bin *.elf *.iso *.img
+	rm -f *.obj *.a *.so *.dylib
+	rm -f *.swp *.swo *~ .DS_Store
+	rm -f *.tmp *.bak *.log
+	rm -f *.qcow2 *.vmdk
+	rm -f sysfs_data.c sysfs_data.o
 	rm -rf $(ISO_DIR)
+	rm -rf .vscode .idea
+	@echo "Clean complete."
 
