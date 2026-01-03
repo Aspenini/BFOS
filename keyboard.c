@@ -1,8 +1,9 @@
-/* PS/2 Keyboard Driver
- * Handles keyboard input via PS/2 controller
+/* Keyboard Driver
+ * Handles keyboard input via PS/2 controller (x86) or UART (ARM/RISC-V)
  */
 
 #include "kernel.h"
+#include "arch.h"
 
 #define KEYBOARD_DATA_PORT 0x60
 #define KEYBOARD_STATUS_PORT 0x64
@@ -86,18 +87,43 @@ void keyboard_initialize(void) {
     shift_pressed = 0;
     ctrl_pressed = 0;
     
-    /* Enable keyboard by sending command 0xAE (Enable first PS/2 port) */
-    keyboard_write_command(0xAE);
-    
-    /* Clear any pending keyboard data */
-    int clear_count = 0;
-    while (keyboard_has_data() && clear_count++ < 10) {
-        keyboard_read_data(); /* Discard any stale data */
+    input_type_t input_type = arch_get_input_type();
+    if (input_type == INPUT_TYPE_PS2) {
+        /* x86: Initialize PS/2 keyboard */
+        keyboard_write_command(0xAE);
+        
+        /* Clear any pending keyboard data */
+        int clear_count = 0;
+        while (keyboard_has_data() && clear_count++ < 10) {
+            keyboard_read_data(); /* Discard any stale data */
+        }
+    } else {
+        /* ARM/RISC-V: UART is already initialized by arch_init() */
+        /* Nothing else needed */
     }
 }
 
 /* Handle keyboard interrupt (polling version) */
 void keyboard_handle_interrupt(void) {
+    input_type_t input_type = arch_get_input_type();
+    
+    if (input_type == INPUT_TYPE_UART) {
+        /* UART mode: read characters directly */
+        while (arch_input_available() && keyboard_buffer_count < KEYBOARD_BUFFER_SIZE) {
+            char c = arch_input_read();
+            /* Handle Ctrl+Q (0x11) */
+            if (c == 0x11) {
+                keyboard_buffer[keyboard_buffer_tail] = 0x11;
+            } else {
+                keyboard_buffer[keyboard_buffer_tail] = c;
+            }
+            keyboard_buffer_tail = (keyboard_buffer_tail + 1) % KEYBOARD_BUFFER_SIZE;
+            keyboard_buffer_count++;
+        }
+        return;
+    }
+    
+    /* PS/2 mode: handle scan codes */
     /* Poll keyboard multiple times to catch all pending keys */
     int max_polls = 10;
     static int key_released = 0;

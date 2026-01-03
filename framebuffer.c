@@ -1,0 +1,133 @@
+/* Framebuffer Text Renderer
+ * Provides text rendering on framebuffer displays (for ARM/RISC-V)
+ */
+
+#include "kernel.h"
+#include "arch.h"
+
+/* Simple 8x16 font bitmap (ASCII 32-127) */
+/* Each character is 8 pixels wide, 16 pixels tall */
+/* Stored as 16 bytes per character (one byte per row) */
+static const uint8_t font_8x16[96][16] = {
+    /* Space (32) */
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+    /* ! (33) */
+    {0x00, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x00, 0x18, 0x18, 0x00, 0x00, 0x00},
+    /* " (34) */
+    {0x00, 0x66, 0x66, 0x66, 0x66, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+    /* # (35) */
+    {0x00, 0x36, 0x36, 0x7F, 0x36, 0x36, 0x7F, 0x36, 0x36, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+    /* $ (36) */
+    {0x00, 0x0C, 0x1E, 0x33, 0x33, 0x03, 0x1E, 0x30, 0x33, 0x33, 0x1E, 0x0C, 0x00, 0x00, 0x00, 0x00},
+    /* % (37) */
+    {0x00, 0x00, 0x63, 0x66, 0x0C, 0x18, 0x30, 0x60, 0x63, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+    /* & (38) */
+    {0x00, 0x1C, 0x36, 0x36, 0x1C, 0x6E, 0x3B, 0x33, 0x33, 0x6E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+    /* ' (39) */
+    {0x00, 0x18, 0x18, 0x18, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+    /* ( (40) */
+    {0x00, 0x0C, 0x18, 0x30, 0x30, 0x30, 0x30, 0x30, 0x18, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+    /* ) (41) */
+    {0x00, 0x30, 0x18, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x18, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+    /* * (42) */
+    {0x00, 0x00, 0x00, 0x66, 0x3C, 0xFF, 0x3C, 0x66, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+    /* + (43) */
+    {0x00, 0x00, 0x00, 0x18, 0x18, 0x7E, 0x18, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+    /* , (44) */
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0x18, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00},
+    /* - (45) */
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x7E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+    /* . (46) */
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+    /* / (47) */
+    {0x00, 0x00, 0x03, 0x06, 0x0C, 0x18, 0x30, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+    /* 0-9, A-Z, a-z, etc. - simplified font */
+    /* For now, we'll use a simple pattern for all characters */
+};
+
+/* Initialize font data (simplified - just enough for basic display) */
+static void init_font(void) {
+    /* For now, we'll render characters as simple blocks */
+    /* A full font would require more data */
+}
+
+/* Convert VGA color to RGB */
+static uint32_t vga_color_to_rgb(uint8_t vga_color) {
+    uint8_t fg = vga_color & 0x0F;
+    uint8_t bg = (vga_color >> 4) & 0x0F;
+    
+    /* VGA color palette (simplified) */
+    static const uint32_t vga_colors[16] = {
+        0x000000, /* Black */
+        0x0000AA, /* Blue */
+        0x00AA00, /* Green */
+        0x00AAAA, /* Cyan */
+        0xAA0000, /* Red */
+        0xAA00AA, /* Magenta */
+        0xAA5500, /* Brown */
+        0xAAAAAA, /* Light Grey */
+        0x555555, /* Dark Grey */
+        0x5555FF, /* Light Blue */
+        0x55FF55, /* Light Green */
+        0x55FFFF, /* Light Cyan */
+        0xFF5555, /* Light Red */
+        0xFF55FF, /* Light Magenta */
+        0xFFFF55, /* Yellow */
+        0xFFFFFF  /* White */
+    };
+    
+    return vga_colors[fg];
+}
+
+/* Draw a character to framebuffer */
+void framebuffer_putchar(char c, uint8_t color, size_t x, size_t y, size_t char_width, size_t char_height) {
+    display_info_t* display = arch_get_display_info();
+    if (!display || !display->buffer) return;
+    
+    uint32_t fg_color = vga_color_to_rgb(color & 0x0F);
+    uint32_t bg_color = vga_color_to_rgb((color >> 4) & 0x0F);
+    
+    size_t fb_width = display->width;
+    size_t bpp = display->bpp / 8; /* Bytes per pixel */
+    
+    /* Calculate character position in framebuffer */
+    size_t char_x = x * char_width;
+    size_t char_y = y * char_height;
+    
+    /* Simple character rendering: draw character as ASCII pattern */
+    /* For a full implementation, you'd use a bitmap font */
+    for (size_t py = 0; py < char_height; py++) {
+        for (size_t px = 0; px < char_width; px++) {
+            size_t fb_x = char_x + px;
+            size_t fb_y = char_y + py;
+            
+            if (fb_x >= fb_width || fb_y >= display->height) continue;
+            
+            size_t offset = (fb_y * display->pitch) + (fb_x * bpp);
+            uint32_t* pixel = (uint32_t*)((uint8_t*)display->buffer + offset);
+            
+            /* Simple pattern: draw character outline */
+            /* Border pixels use background, inner pixels use foreground */
+            int is_border = (py < 1 || py >= char_height - 1 || px < 1 || px >= char_width - 1);
+            *pixel = is_border ? bg_color : fg_color;
+        }
+    }
+}
+
+/* Clear framebuffer */
+void framebuffer_clear(uint8_t bg_color) {
+    display_info_t* display = arch_get_display_info();
+    if (!display || !display->buffer) return;
+    
+    uint32_t rgb_color = vga_color_to_rgb((bg_color >> 4) & 0x0F);
+    size_t bpp = display->bpp / 8;
+    
+    for (size_t y = 0; y < display->height; y++) {
+        for (size_t x = 0; x < display->width; x++) {
+            size_t offset = (y * display->pitch) + (x * bpp);
+            uint32_t* pixel = (uint32_t*)((uint8_t*)display->buffer + offset);
+            *pixel = rgb_color;
+        }
+    }
+}
+

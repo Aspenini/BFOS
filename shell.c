@@ -558,9 +558,9 @@ static void read_line(char* buffer, size_t max_len) {
                     terminal_putchar(' ');
                     terminal_set_position(col - 1, terminal_get_row());
                 } else {
-                    terminal_putchar('\b');
-                    terminal_putchar(' ');
-                    terminal_putchar('\b');
+                terminal_putchar('\b');
+                terminal_putchar(' ');
+                terminal_putchar('\b');
                 }
                 terminal_update_cursor();
             }

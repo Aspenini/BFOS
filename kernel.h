@@ -101,5 +101,16 @@ size_t config_get_vga_height(void);
 int config_set_resolution(size_t width, size_t height);
 void config_get_resolution_string(char* buffer, size_t max_len);
 
+/* Framebuffer functions (for ARM/RISC-V) */
+void framebuffer_putchar(char c, uint8_t color, size_t x, size_t y, size_t char_width, size_t char_height);
+void framebuffer_clear(uint8_t bg_color);
+
+/* UART functions (for ARM/RISC-V) */
+void uart_initialize(void);
+int uart_has_data(void);
+char uart_read_char(void);
+void uart_write_char(char c);
+void uart_write_string(const char* str);
+
 #endif
 
