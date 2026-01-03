@@ -48,5 +48,28 @@ void bf_load_and_run(const char* bf_code);
 size_t bf_get_pointer(void);
 uint8_t bf_get_value(void);
 
+/* Keyboard functions */
+void keyboard_initialize(void);
+void keyboard_handle_interrupt(void);
+int keyboard_getchar(void);
+char keyboard_wait_char(void);
+
+/* File system functions */
+void fs_initialize(void);
+fs_entry* fs_mkdir(const char* name);
+fs_entry* fs_create_file(const char* name, const char* content);
+int fs_chdir(const char* path);
+void fs_get_cwd(char* path, size_t max_len);
+fs_entry* fs_find_file(const char* path);
+void fs_list_dir(fs_entry* dir, void (*callback)(const char* name, uint8_t type));
+fs_entry* fs_get_cwd_entry(void);
+
+/* File system forward declarations */
+struct fs_entry;
+typedef struct fs_entry fs_entry;
+
+/* Shell functions */
+void shell_main(void);
+
 #endif
 

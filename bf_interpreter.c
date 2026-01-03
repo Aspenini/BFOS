@@ -56,9 +56,15 @@ void bf_execute(const char* code) {
                 break;
                 
             case ',':
-                /* Input - for now, just set to 0 (EOF) */
-                /* TODO: Implement keyboard input */
-                bf_tape[bf_pointer] = 0;
+                /* Input from keyboard */
+                {
+                    int c = keyboard_getchar();
+                    if (c == -1) {
+                        keyboard_handle_interrupt();
+                        c = keyboard_getchar();
+                    }
+                    bf_tape[bf_pointer] = (c == -1) ? 0 : (uint8_t)c;
+                }
                 break;
                 
             case '[':

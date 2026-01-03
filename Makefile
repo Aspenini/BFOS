@@ -6,7 +6,7 @@ ASMFLAGS = -f elf32
 CFLAGS = -m32 -nostdlib -nostdinc -fno-builtin -fno-stack-protector -Wall -Wextra
 LDFLAGS = -m elf_i386 -T linker.ld
 
-KERNEL_OBJ = boot.o kernel.o terminal.o bf_interpreter.o
+KERNEL_OBJ = boot.o kernel.o terminal.o bf_interpreter.o keyboard.o filesystem.o shell.o
 KERNEL_BIN = kernel.bin
 ISO_DIR = iso
 ISO_FILE = kernel.iso
@@ -29,6 +29,15 @@ terminal.o: terminal.c kernel.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 bf_interpreter.o: bf_interpreter.c kernel.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+keyboard.o: keyboard.c kernel.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+filesystem.o: filesystem.c kernel.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+shell.o: shell.c kernel.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 iso: $(KERNEL_BIN)
